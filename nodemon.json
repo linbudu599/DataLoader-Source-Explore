@@ -1,0 +1,22 @@
+{
+  "name": "GraphQL",
+  "restartable": "r",
+  "delay": "500",
+  "ignore": [
+    ".git",
+    "node_modules/**",
+    "/**/*.json",
+    "/**/*.graphql",
+    "/**/*.gql",
+    "/**/*.test.ts"
+  ],
+  "verbose": true,
+  "execMap": {
+    "": "node",
+    "js": "node --harmony",
+    "ts": "ts-node "
+  },
+  "ext": "ts",
+  "watch": ["**/*.ts"],
+  "legacy-watch": false
+}
