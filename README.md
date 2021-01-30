@@ -7,4 +7,5 @@
 - [ ] 源码: Batch部分
 - [ ] 源码: Cache部分
 - [ ] Prisma DataLoader 源码
-- [ ] TypeGraphQL DataLoader 源码
+- [ ] TypeGraphQL-DataLoader Demo及源码
+- [ ] NestJS-DataLoader Demo及源码

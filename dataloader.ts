@@ -25,6 +25,17 @@ export type CacheMap<K, V> = {
   clear(): any;
 };
 
+// Private: Describes a batch of requests
+type Batch<K, V> = {
+  hasDispatched: boolean;
+  keys: Array<K>;
+  callbacks: Array<{
+    resolve: (value: V) => void;
+    reject: (error: Error) => void;
+  }>;
+  cacheHits?: Array<() => void>;
+};
+
 /**
  * A `DataLoader` creates a public API for loading data from a particular
  * data back-end with unique keys such as the `id` column of a SQL table or
@@ -35,6 +46,9 @@ export type CacheMap<K, V> = {
  * different access permissions and consider creating a new instance per
  * web request.
  */
+// 推荐为每一次请求使用一个新的实例
+// 如果和Nest/Midway这样的框架协作, 需要将其作用域设置为请求级别
+// 对于Apollo-Server + TypeGraphQL也可以用TypeDI实现
 export default class DataLoader<K, V, C = K> {
   constructor(batchLoadFn: BatchLoadFn<K, V>, options?: Options<K, V, C>) {
     if (typeof batchLoadFn !== "function") {
@@ -45,27 +59,43 @@ export default class DataLoader<K, V, C = K> {
     }
 
     this._batchLoadFn = batchLoadFn;
-    this._maxBatchSize = getValidMaxBatchSize(options);
+    // _batchScheduleFn: 负责批处理调度的函数
+    // 如果没有传入, 则会使用enqueuePostPromiseJob, 这个函数会根据环境选择使用的函数
+    // NodeJS下使用process.nextTick(实际上还会包裹在一个立刻resolve的Promise内)
+    // 或者setImmediate
+    // 浏览器下使用setTimeout
+    // 详见源码讲解中的事件循环部分
     this._batchScheduleFn = getValidBatchScheduleFn(options);
+
+    // 批处理上限, 比如同时load n条数据
+    this._maxBatchSize = getValidMaxBatchSize(options);
+
     this._cacheKeyFn = getValidCacheKeyFn(options);
     this._cacheMap = getValidCacheMap(options);
+
+    // 当前的批(不知道咋翻译好点)
+    // 内部包括该batch是否已经派发, 注册的key与对应的回调, 以及缓存控制
     this._batch = null;
   }
 
   // Private
   _batchLoadFn: BatchLoadFn<K, V>;
-  _maxBatchSize: number;
   _batchScheduleFn: (fn: () => void) => void;
+
+  _maxBatchSize: number;
+
   _cacheKeyFn: (key: K) => C;
   _cacheMap: CacheMap<C, Promise<V>> | null;
+
   _batch: Batch<K, V> | null;
 
   /**
    * Loads a key, returning a `Promise` for the value represented by that key.
    */
   load(key: K): Promise<V> {
-    // load会被多次调用
-    console.log("Load Invoke");
+    // load会被多次调用:
+    // 首次调用 创建新的batch(绑定到当前DL实例)
+    // 后续调用 将key与回调(resolve reject)挂载到batch的keys和callbacks上
     if (key === null || key === undefined) {
       throw new TypeError(
         "The loader.load() function must be called with a value, " +
@@ -96,7 +126,7 @@ export default class DataLoader<K, V, C = K> {
     // dispatched along with the current batch.
     batch.keys.push(key);
     // 每次调用的key会被记录
-    console.log(key);
+    // console.log(key);
     const promise: Promise<V> = new Promise((resolve, reject) => {
       // 这就是为啥key和callback要对应的原因?
       batch.callbacks.push({ resolve, reject });
@@ -107,6 +137,7 @@ export default class DataLoader<K, V, C = K> {
       cacheMap.set(cacheKey, promise);
     }
 
+    // 返回的promise会在下个事件循环resolve掉
     return promise;
   }
 
@@ -131,6 +162,7 @@ export default class DataLoader<K, V, C = K> {
    *
    */
   loadMany(keys: Readonly<Array<K>>): Promise<Array<V | Error>> {
+    // 批量调用load后使用Promise.all等待所有promise resolve掉
     if (!isArrayLike(keys)) {
       throw new TypeError(
         "The loader.loadMany() function must be called with Array<key> " +
@@ -243,18 +275,7 @@ let enqueuePostPromiseJob =
     : setImmediate || setTimeout;
 
 // Private: cached resolved Promise instance
-let resolvedPromise;
-
-// Private: Describes a batch of requests
-type Batch<K, V> = {
-  hasDispatched: boolean;
-  keys: Array<K>;
-  callbacks: Array<{
-    resolve: (value: V) => void;
-    reject: (error: Error) => void;
-  }>;
-  cacheHits?: Array<() => void>;
-};
+let resolvedPromise: Promise<void>;
 
 // Private: Either returns the current batch, or creates and schedules a
 // dispatch of a new batch for the given loader.
@@ -288,6 +309,13 @@ function getCurrentBatch<K, V>(loader: DataLoader<K, V, any>): Batch<K, V> {
   loader._batch = newBatch;
 
   // Then schedule a task to dispatch this batch of requests.
+  // 在创建一个新的batch时, 将批处理函数添加到任务队列中
+  // 比如在NodeJS环境下, 即为
+  // Promise.resolve().then(() => {
+  //   process.nextTick(() => {
+  //     dispatchBatch(loader, newBatch);
+  //   });
+  // });
   loader._batchScheduleFn(() => {
     dispatchBatch(loader, newBatch);
   });
@@ -310,7 +338,7 @@ function dispatchBatch<K, V>(
 
   // Call the provided batchLoadFn for this loader with the batch's keys and
   // with the loader as the `this` context.
-  // 调用批处理函数
+  // 调用实例化时传入的批加载函数
   let batchPromise = loader._batchLoadFn(batch.keys);
 
   // Assert the expected response from batchLoadFn
@@ -325,8 +353,6 @@ function dispatchBatch<K, V>(
       )
     );
   }
-
-  console.log(2222222);
 
   // Await the resolution of the call to batchLoadFn.
   batchPromise
@@ -355,6 +381,7 @@ function dispatchBatch<K, V>(
 
       // Step through values, resolving or rejecting each Promise in the batch.
       for (let i = 0; i < batch.callbacks.length; i++) {
+        // 使用加载值来resolve掉load的promise
         let value = values[i];
         if (value instanceof Error) {
           batch.callbacks[i].reject(value);

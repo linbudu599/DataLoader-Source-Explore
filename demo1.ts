@@ -1,5 +1,6 @@
 import { ApolloServer, gql } from "apollo-server";
-import DataLoader from "./dataloader";
+// import DataLoader from "./dataloader";
+import DataLoader from "./tiny";
 
 import chalk from "chalk";
 
@@ -37,6 +38,14 @@ interface IPet {
   age: number;
   isMale: boolean;
 }
+
+const promiseWrapper = <T>(value: T, indicator: string): Promise<T> =>
+  new Promise((resolve) => {
+    setTimeout(() => {
+      console.log(chalk.cyanBright(indicator));
+      return resolve(value);
+    }, 200);
+  });
 
 const mockService = (() => {
   const users: IUser[] = [
@@ -79,14 +88,6 @@ const mockService = (() => {
       isMale: true,
     },
   ];
-
-  const promiseWrapper = <T>(value: T, indicator: string): Promise<T> =>
-    new Promise((resolve) => {
-      setTimeout(() => {
-        console.log(chalk.cyanBright(indicator));
-        return resolve(value);
-      }, 200);
-    });
 
   return {
     getUserById: (id: number) =>
@@ -195,8 +196,8 @@ const server = new ApolloServer({
             return pets.sort(
               (prev, curr) => petIds.indexOf(prev.id) - petIds.indexOf(curr.id)
             );
-          },
-          { batch: true, cache: true }
+          }
+          // { batch: true, cache: true }
         ),
       },
     };
