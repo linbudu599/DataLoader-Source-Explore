@@ -551,18 +551,18 @@ function dispatchBatch<K, V>(
 在dispatchBatch中:
 
 - 标记当前batch为已派发
-- 使用batch.keys作为参数调用实例化时传入的批查询函数(即需要进行批处理的数据)
-- 遍历批查询函数返回的值(Promise内), 依次调用掉batch.callbacks(或者reject)中的resolve, 也就是将load返回的promise resolve掉. 这里可以看到key和callbacks都是遵从添加顺序的.
+- 使用batch.keys作为参数调用实例化时传入的批查询函数(即**需要进行批处理的数据**)
+- 遍历批查询函数返回的值(Promise内), 依次调用`batch.callbacks`(或者reject)中的resolve, 也就是**将load返回的promise resolve掉**. 这里可以看到key和callbacks都是遵从添加顺序的.
 
 
 
 我们从头理一遍逻辑:
 
-- 调用load方法, 首先调用getCurrentBatch获取到当前batch
-- getCurrentBatch中, 返回已存在的batch或者新建一个batch, 对于新创建的batch, 调用_batchScheduleFn, 将dispatchBatch(loader, newBatch)添加到批处理函数中
-- _batchScheduleFn方法, 如果选项中没有传入, 就会使用enqueuePostPromiseJob, 这个变量实际上就是根据环境来选择使用的调度函数, 通常在NodeJs下会使用process.nextTick()(还会包裹在一个立刻resolve的promise的then方法中), 在浏览器中使用setTimeout来作为调度函数. 你也可以显式的指定(通过实例化时的options.batchScheduleFn) 
-- 在load方法中获取到batch后, 会将当前的入参key添加到batch.keys中, 生成一个promise, 将其resolve reject分别添加到batch.callbacks中, 并返回这个promise
-- 在dispatchBatch执行时, load方法已经被调用多次, 所有本次batch内需要的key都被添加到batch.keys内, 所以在此方法内可以直接使用实例化时传入的batchLoadFn传入keys来获取所有需要的结果, 而后遍历结果, resolve/reject掉每一个(load返回的)promise.
+- 调用load方法, 首先调用`getCurrentBatch`获取到当前batch
+- `getCurrentBatch`中, 返回已存在的batch或者新建一个batch, 对于新创建的batch, 调用`_batchScheduleFn`, 将`dispatchBatch(loader, newBatch)`添加到批处理函数中
+- `_batchScheduleFn`方法, 如果选项中没有传入, 就会使用`enqueuePostPromiseJob`, 这个变量实际上就是根据环境来选择使用的调度函数, 通常在NodeJs下会使用`process.nextTick()`(**还会包裹在一个立刻resolve的promise的then方法中**), 在浏览器中使用`setTimeout`来作为调度函数. 你也可以显式的指定(通过实例化时的`options.batchScheduleFn`) 
+- 在load方法中获取到batch后, 会将当前的入参key添加到batch.keys中, 生成一个promise, 将其resolve reject分别添加到`batch.callbacks`中, 并返回这个promise
+- 在`dispatchBatch`执行时, load方法已经被调用多次, 所有本次batch内需要的key都被添加到batch.keys内, 所以在此方法内可以直接使用实例化时传入的`batchLoadFn`传入keys来获取所有需要的结果, 而后遍历结果, resolve/reject掉每一个(load返回的)promise.
 - 在所有load方法的promise都已经resolve/reject后, 本次batch结束
 
 
@@ -573,16 +573,16 @@ function dispatchBatch<K, V>(
 
 NodeJS中的事件循环由Libuv实现, 每一轮循环分为这么几个阶段:
 
-- 初始化, 执行process.nextTick与microTasks
+- 初始化, 执行`process.nextTick`与`microTasks`
 - 正式的Event Loop:
-  - timers, 执行到期的setTimeout与setInterval, 检查并完成所有的process.nextTick, 检查并完成所有的microtask
-  - I/O 回调, 执行已完成的I/O操作的回调函数, 检查并完成所有的process.nextTick, 检查并完成所有的microtask
+  - timers, 执行到期的`setTimeout`与`setInterval`**, 检查并完成所有的process.nextTick, 检查并完成所有的microtask**
+  - I/O 回调, 执行**已完成的I/O操作的回调函数**, **检查并完成所有的process.nextTick, 检查并完成所有的microtask**
   - idle与prepare阶段, 可忽略
   - poll: 
-    - 检查是否有可用回调(定时器 I/O), 并执行, 检查并完成所有的process.nextTick, 检查并完成所有的microtask
-    - 没有回调时, 检查setImmediate回调, 如果均没有, 阻塞在此阶段等待新的事件通知. 如果有, 才进入下一阶段check.
+    - 检查是否有可用回调(定时器 I/O), 并执行, **检查并完成所有的process.nextTick, 检查并完成所有的microtask**
+    - 没有回调时, 检查`setImmediate`回调, **如果均没有, 阻塞在此阶段等待新的事件通知. 如果有, 才进入下一阶段check.**
     - 不存在尚未完成的回调, 进入下一阶段check
-  - check: 执行setImmediate回调, 检查并完成所有的process.nextTick, 检查并完成所有的microtask
+  - check: 执行`setImmediate`回调, **检查并完成所有的process.nextTick, 检查并完成所有的microtask**
   - close callbacks
 
 dispatchBatch实际上是这样被执行的(NodeJS环境下):
@@ -593,7 +593,7 @@ promise.then(() => {
 })
 ```
 
-因此, 很容易理解使用这种方式添加的dispatchBatch会在下次事件循环的开始执行, 而所有promise此时已经执行完毕, 也就意味着load方法已经将所有key都添加到batch.keys中, 此时执行batchLoadFn, 就能确保已经收集完毕批查询所需的key.
+因此, 很容易理解使用这种方式添加的`dispatchBatch`会在下次事件循环的开始执行, 而所有promise此时已经执行完毕, 也就意味着load方法已经将所有key都添加到batch.keys中, 此时执行`batchLoadFn`, 就能确保已经收集完毕批查询所需的key.
 
 在浏览器中, 由于可以简单的分为微任务和宏任务, 因此使用setTimeout来确保dispatchBatch在所有promise任务后执行是更容易理解的.
 
@@ -605,8 +605,8 @@ promise.then(() => {
 
 Mini版本的DataLoader主要有这些不同:
 
-- 直接使用process.nextTick作为enqueuePostPromiseJob
-- 使用数组而不是一个对象来表示batch, 在这里我们定义为任务队列, batch处理中需要使用hasDispatched来标识状态, 这里我们直接用任务队列的长度来标识: 首次调用load, 任务队列为空, 将执行方法通过enqueuePostPromiseJob添加到JavaScript的任务队列
+- 直接使用`process.nextTick`作为`enqueuePostPromiseJob`
+- 使用数组而不是一个对象来表示batch, 在这里我们定义为任务队列, batch处理中需要使用`hasDispatched`来标识状态, 这里我们直接用任务队列的长度来标识: 首次调用load, 任务队列为空, 将执行方法通过`enqueuePostPromiseJob`添加到JavaScript的任务队列
 
 完整实现如下:
 
@@ -692,7 +692,7 @@ function executeTaskQueue<K, V>(loader: TinyDataLoader<K, V, any>) {
 
 ## Prisma中的DataLoader
 
-如果你此前没有使用过[Prisma](https://www.prisma.io/), 我这里简单的介绍一下, Prisma是"下一代的ORM", 但又和你使用过的ORM完全不同, 比如定义实体, TypeORM与Sequelize在ts文件内通过JavaScript/TypeScript对象(类)的方式定义, 由ORM在运行时完成到表/列的定义的转换, 比如一个TypeORM的实体可能是这样的:
+如果你此前没有使用过[Prisma](https://www.prisma.io/), 我这里简单的介绍一下, Prisma是**"下一代的ORM"**, 但又和你使用过的ORM完全不同, 比如定义实体, TypeORM与Sequelize在ts文件内通过JavaScript/TypeScript对象(类)的方式定义, 由ORM在运行时完成到表/列的定义的转换, 比如一个TypeORM的实体可能是这样的:
 
 ```typescript
 import {
@@ -771,11 +771,11 @@ async function createTodo(title: string, content?: string) {
 
 > 这些示例来自于[Prisma-Article-Example](https://github.com/linbudu599/Prisma-Article-Example), 我也是突然才想起来我几周前还准备写几篇介绍Prisma使用的文章...(毕竟Prisma和GraphQL也很契合), 是鸽王没错了.
 
-前面我们说到GraphQL API要么使用dataloader, 要么使用Hasura/PostGraphile这种数据库层的方案, 来解决n+1问题, 其实使用Prisma作为ORM也能解决, 因为Prisma内置了DataLoader(应该是在Prisma 2才有了内置功能, 我没有在V1版本中看到).
+前面我们说到GraphQL API要么使用dataloader, 要么使用`Hasura`/`PostGraphile`这种数据库层的方案, 来解决n+1问题, 其实使用Prisma作为ORM也能解决, 因为Prisma内置了DataLoader(应该是在Prisma 2才有了内置功能, 我没有在V1版本中看到).
 
-> 见[runtime/DataLoader.ts](https://github.com/prisma/prisma/blob/e59e1a25a11ec4f7151129b081e698af7924707f/src/packages/client/src/runtime/Dataloader.ts)
+> 见 [runtime/DataLoader.ts](https://github.com/prisma/prisma/blob/e59e1a25a11ec4f7151129b081e698af7924707f/src/packages/client/src/runtime/Dataloader.ts)
 
-这里的实现也相当精简, 只有百来行不到, 核心思路类似于原版的DataLoader, 也是使用process.nextTick来执行dispatchBatch, 见 [源码](https://github.com/prisma/prisma/blob/e59e1a25a11ec4f7151129b081e698af7924707f/src/packdages/client/src/runtime/Dataloader.ts#L33)
+这里的实现也相当精简, 只有百来行不到, 核心思路类似于原版的DataLoader, 也是使用`process.nextTick`来执行`dispatchBatch`, 见 [源码](https://github.com/prisma/prisma/blob/e59e1a25a11ec4f7151129b081e698af7924707f/src/packdages/client/src/runtime/Dataloader.ts#L33)
 
 这里放一下加过注释的代码:
 
@@ -894,11 +894,11 @@ export class Dataloader<T = any> {
 
 ### TypeGraphQL-DataLoader
 
-如果我们使用的是TypeGraphQL这种方式, 上面那种传入typeDefs和resolvers的方案就不能再使用了, 因为TypeGraphQL与Apollo-Server一同使用时, 传入的schema属性会屏蔽掉传入的typeDefs与resolvers. 并且, 使用TypeGraphQL的情况下Resolver也是完全不同的定义方式, 参考上面的GraphQL-Explorer-Server. 这种时候想要使用DataLoader, 就需要在ORM层操作了(如果你不使用ORM, 也可以像上面那样在context中为每个对象类型定义dataloader实例).
+如果我们使用的是TypeGraphQL这种方式, 上面那种传入typeDefs和resolvers的方案就不能再使用了, 因为TypeGraphQL与Apollo-Server一同使用时, 传入的schema属性会屏蔽掉传入的typeDefs与resolvers. 并且, 使用TypeGraphQL的情况下Resolver也是完全不同的定义方式, 参考上面的**GraphQL-Explorer-Server**. 这种时候想要使用DataLoader, 就需要在ORM层操作了(如果你不使用ORM, 也可以像上面那样在context中为每个对象类型定义dataloader实例).
 
 而社区已经有了提供这一能力的包: [TypeGraphQL-DataLoader](https://github.com/slaypni/type-graphql-dataloader)
 
-它的使用方式也很简单, 就是在TypeORM的关系属性上定义`@TypeormLoader`装饰器, 并在ApolloServer中注入ORM获得连接的方法(如TypeORM的getConnection),根据传入的类型定义以及装饰的target class获得关系定义:
+它的使用方式也很简单, 就是在TypeORM的关系属性上定义`@TypeormLoader`装饰器, 并在ApolloServer中注入ORM获得连接的方法(如TypeORM的`getConnection`),根据传入的类型定义以及装饰的target class获得关系定义:
 
 ```typescript
  const relation = tgdContext
@@ -982,17 +982,21 @@ export class AccountResolver {
 
 实际上, TypeGraphQL-DataLoader也提供了这种方式来为每个对象类型(或者说实体)提供一个DataLoader实例的方式, 这也是灵活度最高, 优化最好的一种方式.
 
+源码就简单得多了, 直接参考注释版 [nestjs-dataloader](https://github.com/linbudu599/DataLoader-Source-Explore)
+
+
+
 ## 总结
 
-DataLoader相关的知识就分享到这里, 回顾一下, 实际上最核心的思路还是`enqueuePostPromiseJob`, 通过这种方式巧妙地将一批单次的数据查询(GetSingleUserById)转化为一次批量的数据查询(GetBatchUsersByIds), 大大减少了数据库I/O的次数, 使得你的GraphQL API性能一下有了明显提升.
+DataLoader相关的知识就分享到这里, 回顾一下, 实际上最核心的思路还是`enqueuePostPromiseJob`, 通过这种方式巧妙地将**一批单次的数据查询(GetSingleUserById)**转化为一次批量的数据查询(GetBatchUsersByIds), 大大减少了数据库I/O的次数, 使得你的GraphQL API性能一下有了明显提升.
 
-在最后我想有必要补充一点, DataLoader并不一定能提升你的GraphQL API响应速度, 你可以通过ApolloServer的tracing选项来开启请求链路耗时追踪:
+在最后我想有必要补充一点, DataLoader并不一定能提升你的GraphQL API响应速度, 你可以通过ApolloServer的**tracing**选项来开启请求链路耗时追踪:
 
 ![image-20210130210834191](https://budu-oss-store.oss-cn-shenzhen.aliyuncs.com/image-20210130210834191.png)
 
 > 由于这个例子里并不涉及真正的数据库I/O, 因此不能作为示例
 
-在不使用DataLoader时, 假设执行N次GetSingleUserById, 那么I/O会是这样的:
+在不使用DataLoader时, 假设执行**N次GetSingleUserById**, 那么I/O会是这样的:
 
 ```text
 ----->
@@ -1003,7 +1007,7 @@ DataLoader相关的知识就分享到这里, 回顾一下, 实际上最核心的
 
 相当于是多个耗时较小的I/O并行执行.
 
-而执行1次GetBatchUsersByIds, I/O可能会是这样的:
+而执行**1次GetBatchUsersByIds**, I/O可能会是这样的:
 
 ```text
 --------------->
