@@ -444,7 +444,7 @@ function getValidBatchScheduleFn(
 ): (fn: () => void) => void {
   let batchScheduleFn = options && options.batchScheduleFn;
   if (batchScheduleFn === undefined) {
-    // 在promise后执行?
+    // 在promise后执行
     return enqueuePostPromiseJob;
   }
   if (typeof batchScheduleFn !== "function") {

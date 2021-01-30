@@ -1,13 +1,13 @@
 import { ApolloServer, gql } from "apollo-server";
-// import DataLoader from "./dataloader";
-import DataLoader from "./tiny";
+import DataLoader from "./dataloader";
+// import DataLoader from "./tiny";
 
 import chalk from "chalk";
 
 const typeDefs = gql`
   type Query {
-    fetchUserByName(name: String!): User
     fetchAllUsers: [User]
+    fetchUserByName(name: String!): User
   }
 
   type User {
@@ -146,12 +146,12 @@ const resolvers = {
     },
   },
   User: {
-    async partner(user: IUser, args, { dataloaders }: IContext) {
-      // return mockService.getUserById(user.partnerId);
+    async partner(user: IUser, args, { service, dataloaders }: IContext) {
+      // return service.getUserById(user.partnerId);
       return dataloaders.users.load(user.partnerId);
     },
-    async pets(user: IUser, args, { dataloaders }: IContext) {
-      // return mockService.getPetsByIds(user.petsId);
+    async pets(user: IUser, args, { service, dataloaders }: IContext) {
+      // return service.getPetsByIds(user.petsId);
       return dataloaders.pets.loadMany(user.petsId);
     },
   },
