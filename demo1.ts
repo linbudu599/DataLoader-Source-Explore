@@ -147,12 +147,12 @@ const resolvers = {
   },
   User: {
     async partner(user: IUser, args, { service, dataloaders }: IContext) {
-      // return service.getUserById(user.partnerId);
-      return dataloaders.users.load(user.partnerId);
+      return service.getUserById(user.partnerId);
+      // return dataloaders.users.load(user.partnerId);
     },
     async pets(user: IUser, args, { service, dataloaders }: IContext) {
-      // return service.getPetsByIds(user.petsId);
-      return dataloaders.pets.loadMany(user.petsId);
+      return service.getPetsByIds(user.petsId);
+      // return dataloaders.pets.loadMany(user.petsId);
     },
   },
 };

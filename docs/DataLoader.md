@@ -1,20 +1,20 @@
-
-
 ## 前言
 
-玩了一段时间GraphQL后突然想起来很有必要看一下DataLoader源码, 正好以此作为重新开始更新文章的契机. 实际上DataLoader本身的实现没有多么复杂, 优秀以及强大的是它的思想, 每个前端工程师都或多或少了解过事件循环的相关概念, 可是能够真正使用事件循环的机制, 来解决GraphQL API最为人诟病的缺点之一N+1问题, 却是并不容易的.
+玩了一段时间GraphQL后突然想起来很有必要看一下DataLoader源码, 正好以此作为重新开始更新文章的契机. 我已经攒了一堆[**想写的文章idea**](https://github.com/linbudu599/Blog/issues/17)了... 但是人懒真的是没办法的事, 而且最近确实在忙着学很多新东西hhh.
+
+实际上DataLoader本身的实现没有多么复杂, 优秀以及强大的是它的思想, 每个前端工程师都或多或少了解过事件循环的相关概念, 可是能够真正使用事件循环的机制, 来解决GraphQL API最为人诟病的缺点之一: **N+1问题**, 却并不容易.
 
 这篇文章会包含较多干货, 如:
 
 - 在GraphQL Resolver中应用DataLoader带来的变化
-- DataLoader源码解析(Batch部分)
-- 迷你实现版本的DataLoader
+- DataLoader源码解析(**Batch部分**)
+- 迷你实现的DataLoader
 - Prisma2中的DataLoader
-- 集成DataLoader到框架层
+- 集成DataLoader到ORM层与框架层
 
 
 
-这篇文章能帮助你梳理导致GraphQL N+1的问题根源, 再到入手解决它, 复习事件循环机制相关的知识, 以及如何与框架集成DataLoader, 这也是我对GraphQL的第一篇文章.
+这篇文章能帮助你梳理导致GraphQL N+1的问题根源, 再到入手解决它, 稍微复习事件循环机制相关的知识, 以及如何与ORM/框架集成DataLoader, 这也是我对GraphQL的正式第一篇文章.
 
 > 原本我的设想是写一个系列的GraphQL文章(大约八九篇), 但总是提笔就烦躁, 原因是我很不习惯将入门阶段的知识讲解的太过细致, 但入门向文章又必须做到面向零基础的同学, 所以先鸽置着~ 说不定哪天我就突然兴致满满开始写了, 就像这篇文章也是我昨天看到了GitHub列表一位大佬fork了DataLoader仓库后临时起意的.
 
@@ -77,21 +77,21 @@ query {
 
 看起来好像也只有一次? 因为数据是一起查回来的? 实际上这里的数据库I/O次数达到了N+1次. 具体的demo我们会在下面讲解, 先来简单介绍下上面的GraphQL语句基本含义:
 
-- `query` 意味着本次查询是只读不写的, 这是GraphQL中的操作类型概念, 其他的操作类型还有`mutation`与`subscription`, 分别代表着读写操作(可以想象为RESTFul中的POST/PUT/Delete等带方法)与订阅操作(可以理解为WebSocket, 实际上此操作也必须通过WebSocket承接)
-- `fetchAllUsers` 是一个对象类型, 它的内部包含了 `id` `name` 这些基础属性, 以及`pets`这一对象属性, 再进入到`pets`中, 它拥有的都是基础属性. 在一个大型GraphQL API中, 对象属性的嵌套可能会达到数十层甚至更多, 这是GraphQL的特色之一, 但往往也可能带来严重的性能问题, 所以通常会限制嵌套的深度, 抛弃掉超出一定深度的请求.
-- REST API中我们通常有Controller的概念, 来针对路由级别做出响应. 对应的, GraphQL中也有Resolver的概念, 但是它针对的则是对象类型. 也就是说, 每一个对象类型都会有自己的解析器, 比如上面的`fetchAllUsers` 和 `pets`. 你可以理解为Resolver就是针对对象类型的函数
+- `query` 意味着本次查询是只读不写的, 这是GraphQL中的[**操作类型**](https://graphql.org/learn/schema/#the-query-and-mutation-types)概念, 其他的操作类型还有`mutation`与`subscription`, 分别代表着读写操作(可以想象为RESTFul中的`POST`/`PUT`/`Delete`等带方法)与订阅操作(可以理解为WebSocket, 实际上订阅操作也必须通过WebSocket承接)
+- `fetchAllUsers` 是一个对象类型, 它的内部包含了 `id` `name` 这些基础属性, 以及`pets`这一对象属性, 再进入到`pets`中, 它拥有的都是基础属性. 在一个大型GraphQL API中, 对象属性的嵌套可能会达到数十层甚至更多(这是GraphQL的特色之一, 但往往也可能带来严重的性能问题, 所以通常会限制嵌套的深度, 抛弃掉超出一定深度的请求).
+- REST API中我们通常有`Controller`的概念, 来**针对路由级别做出响应**. 对应的, GraphQL中也有`Resolver`的概念, 但是它针对的则是**[对象类型(ObjectType)](https://graphql.org/learn/schema/#the-query-and-mutation-types)**. 也就是说, 每一个对象类型都会有自己的解析器, 比如上面的`fetchAllUsers` 和 `pets`. 你可以理解为**Resolver就是针对对象类型的函数**.
 
 现在假设我们有一百个用户, 调用`fetchAllUsers`的解析器会返回这一百个用户的数组, 接着用户对象内还存在着对象属性`pets`, 那么我们还需要调用`pets`对应的解析器次数是? 理想情况当然是1次, 因为我们可以在第一次查询中拿到所有用户的信息, 那么只要用所有的宠物ID再查一次得到所有的宠物信息不就行了吗?
 
-但实际情况中, GraphQL会首先执行用户1的`pets`解析器, 得到用户1的宠物信息, 然后执行用户2, ..., 一共100次, 加上查询所有用户的那1次, 这就是GraphQL的N+1问题. 
+**但实际情况中, GraphQL会首先执行用户1的`pets`解析器, 得到用户1的宠物信息, 然后执行用户2, ..., 一共100次, 加上查询所有用户的那1次, 这就是GraphQL的N+1问题.** 
 
 ## 实际问题
 
 我们来看实际的demo:
 
-> 源码见[demo1](https://github.com/linbudu599/DataLoader-Source-Explore/blob/main/demo1.ts)
+> 源码参见: [demo1](https://github.com/linbudu599/DataLoader-Source-Explore/blob/main/demo1.ts)
 
-这里我用`Apollo-Server`写了一个简单的GraphQL服务器, 并且为了减少环境配置成本直接用Promise模拟了数据返回的延迟. 如果你想建立一个完善的GraphQL服务, 推荐使用TypeGraphQL以及Apollo-GraphQL的其他开源项目, 也可参考我写的这个大demo: [GraphQL-Explorer-Server](https://github.com/linbudu599/GraphQL-Explorer-Server)
+这里我用`Apollo-Server`写了一个简单的GraphQL服务器, 并且为了减少环境配置成本直接用Promise模拟了数据返回的延迟. 如果你想建立一个完善的GraphQL服务, 推荐使用TypeGraphQL以及Apollo-GraphQL的其他开源项目, 也可参考我写的这个**大demo**: [**GraphQL-Explorer-Server**](https://github.com/linbudu599/GraphQL-Explorer-Server)
 
 我们的GraphQL Schema定义是这样的:
 
@@ -118,7 +118,7 @@ const typeDefs = gql`
 `;
 ```
 
-> `gql`能帮助你转换GraphQL Schema到DocumentNode, 即GraphQL的节点定义, 这里生成的定义中包含`Query` `User` `Pet` 定义
+> `gql`能帮助你转换GraphQL Schema到[`DocumentNode`](https://github.com/graphql/graphql-js/blob/a546aca77922beb2fee949ea0ad7c9234f7006fd/src/language/ast.js#L246), 即GraphQL的节点定义, 这里生成的定义中包含`Query` `User` `Pet` 定义.
 
  然后我们写一个简单的mock数据:
 
@@ -240,7 +240,7 @@ server.listen(4545).then(({ url }) => {
 });
 ```
 
-> 对于没有使用过Apollo-Server的同学, 这里有个地方要注意一下, 在实例化ApolloServer的过程中传入的context属性会被作为resolver的第三个参数, 所以我们才能在resolver中拿到service.
+> 对于没有使用过Apollo-Server的同学, 这里有个地方要注意一下, 在实例化ApolloServer的过程中传入的context属性会被作为resolver的第三个参数, 所以我们才能在resolver中拿到mockService.
 
 然后访问`http://localhost:4545/graphql`, 使用如下的查询语句:
 
@@ -269,9 +269,9 @@ query {
 
 可以看到, 现在调用了1次`getAllUsers`, 与5次`getUserById`, 也就是说, 此时N+1问题是存在的. 如何解决? 那就要请出DataLoader了.
 
-[DataLoader](https://github.com/graphql/dataloader) 的仓库README讲述了它的来源与历史, 不夸张的说, 除了练手项目以外, 只要是正式使用的GraphQL服务几乎都有DataLoader的身影, 但也有例外, 比如使用了[Hasura](https://github.com/hasura/graphql-engine) [PostGraphile](https://www.graphile.org/postgraphile/introduction/) 这一类直接接管数据库的方案.
+[DataLoader](https://github.com/graphql/dataloader) 的仓库README讲述了它的来源与历史, 不夸张的说, 除了练手项目以及性能未出现不足的小规模项目以外, 只要是正式使用的GraphQL服务几乎都有DataLoader的身影, 但也有例外, 比如使用了[Hasura](https://github.com/hasura/graphql-engine) [PostGraphile](https://www.graphile.org/postgraphile/introduction/) 这一类直接接管数据库的方案.
 
-> DataLoader原本是用Flow写的, 这里为了阅读方便我把它修改成了TypeScript版本, 见[dataLoader.ts](https://github.com/linbudu599/DataLoader-Source-Explore/blob/main/dataloader.ts)
+> DataLoader原本是用Flow(GraphQL也是, 这是FaceBook出品的JavaScript类型工具, 对标TypeScript)写的, 这里为了阅读方便我把它修改成了TypeScript版本, 见[dataLoader.ts](https://github.com/linbudu599/DataLoader-Source-Explore/blob/main/dataloader.ts)
 
 DataLoader的构造函数签名是这样的:
 
@@ -279,7 +279,7 @@ DataLoader的构造函数签名是这样的:
 constructor(batchLoadFn: DataLoader.BatchLoadFn<K, V>, options?: DataLoader.Options<K, V, C>);
 ```
 
-我们主要关注`batchLoadFn`, 这是我们传入的批处理函数. 简单地说, 就是一个能根据一组ID拿到一组对应数据的函数, 就像TypeORM的`repository.findByIds()`方法.
+我们主要关注`batchLoadFn`, 这是我们传入的批处理函数. 简单地说, 就是**一个能根据一组ID拿到一组对应数据的函数**, 就像TypeORM的`repository.findByIds()`方法.
 
 看到这里你可能已经明白DataLoader思路了, 或者在最开始我们讲到造成GraphQL N+1问题的根源你可能就明白了, 只要收集一批需要查询的数据ID, 在最后一起解析不就行了吗. DataLoader也就是这么做的, 所以我们才需要在实例化时传入一个批查询函数.
 
@@ -360,21 +360,17 @@ const resolvers = {
 
 接下来我们可以看DataLoader源码了, 在开始前不妨想想如果让你来实现, 你会用什么方式?
 
-DataLoader的核心功能主要有Batch和Cache, 这里我们只讲解Batch部分, 因为Cache功能的实现没有特别玄学的地方, 很容易看懂. 对于TypeScript代码来说, 最好的阅读方式就是先瞅瞅它的类型声明:
+DataLoader的核心功能主要有**Batch**和**Cache**, 这里我们只讲解Batch部分, 因为Cache功能的实现没有特别玄学的地方, 很容易看懂. 对于TypeScript代码来说, 最好的阅读方式就是先瞅瞅它的类型声明:
 
-> 为了保持篇幅简短, 以下粘贴的代码都删去了Cache相关的处理
+> 为了保持篇幅简短, 以下粘贴的代码都删去了Cache相关的处理以及校验相关逻辑
 
 ```typescript
 // class内部
 constructor(batchLoadFn: BatchLoadFn<K, V>, options?: Options<K, V, C>) {
-    if (typeof batchLoadFn !== "function") {
-      throw new TypeError(
-        // 报错
-      );
-    }
 
     this._batchLoadFn = batchLoadFn;
     this._batchScheduleFn = getValidBatchScheduleFn(options);
+  
     this._maxBatchSize = getValidMaxBatchSize(options);
   
     this._batch = null;
@@ -395,9 +391,9 @@ export type Options<K, V, C = K> = {
 };
 ```
 
-没啥需要讲的, 这里的`batchScheduleFn`是非常重要的一个函数, 字面意义上可以理解为调度函数, 
+没啥需要讲的, 这里的`batchScheduleFn`是非常重要的一个函数, 字面意义上可以理解为**调度函数**, 
 
-`    this._batchScheduleFn = getValidBatchScheduleFn(options);` 这里我们调用了一个getValidBatchScheduleFn, 并将其作为此实例的调度函数:
+`    this._batchScheduleFn = getValidBatchScheduleFn(options);` 这里我们调用了一个`getValidBatchScheduleFn`, 并将其作为此实例的调度函数:
 
 ```typescript
 function getValidBatchScheduleFn(
@@ -416,7 +412,7 @@ function getValidBatchScheduleFn(
 }
 ```
 
-这个函数做的事情也很简单, 如果你在实例化时传入了调度函数, 那就用传入的, 否则就用`enqueuePostPromiseJob`, 这东西是啥我们后面再讲, 变量名来看, 就是入队一个Promise后的任务.
+这个函数做的事情也很简单, 如果你在实例化时传入了调度函数, 那就用传入的, 否则就用**`enqueuePostPromiseJob`**, 这东西是啥我们后面再讲, 变量名来看, 就是入队一个Promise后的任务.
 
 然后来看我们前面使用的load方法:
 
@@ -473,12 +469,12 @@ function getCurrentBatch<K, V>(loader: DataLoader<K, V, any>): Batch<K, V> {
 }
 ```
 
-由这个函数名我们知道它的作用是返回当前的batch, 在其内部逻辑中首先判断是否已经当前实例是否已经处于一个batch(或者说拥有?), 如果有, 则返回已存在的batch. 如果没有, 就生成一个新的, 并将其标记为未派发的(`hasDispatched: false`), 并且将一个函数添加到调度函数中.
+由这个函数名我们知道它的作用是返回当前的batch, 在其内部逻辑中**首先判断是否已经当前实例是否已经处于一个batch(或者说拥有?), 如果有, 则返回已存在的batch. 如果没有, 就生成一个新的, 并将其标记为未派发的(`hasDispatched: false`), 并且将一个调用`dispatchBatch`的函数添加到调度函数中.**
 
 解析:
 
 - 第一次调用load方法会创建一个新的batch并挂载到实例上, 同一个batch内的后续调用会返回这个batch. 在获得这个batch的饮用后, 将调用load时的key添加到batch.keys中
-- 只有第一次调用load方法时, 会将`dispatchBatch(loader, newBatch)`添加到调度函数中, 从函数名意义理解, 也就是开始执行当前batch内的"任务".
+- 只有第一次调用load方法时, 会将`dispatchBatch(loader, newBatch)`添加到调度函数中, 从函数名意义理解, 也就是**开始执行当前batch内的"任务"**.
 
 现在我们可以来看看前面说的`enqueuePostPromiseJob`了, 实际上这是整个DataLoader Batch功能实现的核心:
 
@@ -518,7 +514,7 @@ Promise.resolve().then(()=>{
 >    setTimeout(()=>{})
 >    ```
 
-知道了这些, 我们先继续看后面的逻辑, 会有专门的一节讲解这些API在事件循环中的优先级.
+知道了这些, 我们先继续看后面的逻辑, 会有专门的一节讲解这些API在NodeJS事件循环中的优先级.
 
 ```typescript
 function dispatchBatch<K, V>(
@@ -930,7 +926,7 @@ const handle =
         () => next();
 ```
 
-在不同的handle方法内部, 又调用了不同的DataLoader, 如
+在不同的handle方法内部, 又调用了不同作用的DataLoader实例, 如
 
 ```typescript
 class ToOneDataloader<V> extends DataLoader<any, V> {
@@ -950,3 +946,71 @@ relation.inverseEntityMetadata.primaryColumns[0].propertyName
 
 
 
+### NestJS-DataLoader
+
+这一集成方式又和上面的大不相同, 更像我们一开始的使用方式: 为每个对象类型实例化一个新的DataLoader实例:
+
+> 使用方式来自于 [NestJS-DataLoader](https://github.com/krislefeber/nestjs-dataloader)
+
+```typescript
+// 创建
+@Injectable()
+export class AccountLoader implements NestDataLoader<string, Account> {
+  constructor(private readonly accountService: AccountService) { }
+
+  generateDataLoader(): DataLoader<string, Account> {
+    return new DataLoader<string, Account>(keys => this.accountService.findByIds(keys));
+  }
+}
+
+// 省略注册为provider过程
+
+// 使用
+@Resolver(Account)
+export class AccountResolver {
+
+    @Query(() => [Account])
+    public getAccounts(
+        @Args({ name: 'ids', type: () => [String] }) ids: string[],
+        @Loader(AccountLoader.name) accountLoader: DataLoader<Account['id'], Account>): Promise<Account[]> {
+        return accountLoader.loadMany(ids);
+    }
+}
+```
+
+是不是和一开始使用的差不多? 考虑到`@Query`(`@Resolver`和`@Query`都来自于@nestjs/graphql, 但实际作用和TypeGraphQL的一样)实际上就是定义resolver的方式, 可以说使用方式基本是一样的. 
+
+实际上, TypeGraphQL-DataLoader也提供了这种方式来为每个对象类型(或者说实体)提供一个DataLoader实例的方式, 这也是灵活度最高, 优化最好的一种方式.
+
+## 总结
+
+DataLoader相关的知识就分享到这里, 回顾一下, 实际上最核心的思路还是`enqueuePostPromiseJob`, 通过这种方式巧妙地将一批单次的数据查询(GetSingleUserById)转化为一次批量的数据查询(GetBatchUsersByIds), 大大减少了数据库I/O的次数, 使得你的GraphQL API性能一下有了明显提升.
+
+在最后我想有必要补充一点, DataLoader并不一定能提升你的GraphQL API响应速度, 你可以通过ApolloServer的tracing选项来开启请求链路耗时追踪:
+
+![image-20210130210834191](https://budu-oss-store.oss-cn-shenzhen.aliyuncs.com/image-20210130210834191.png)
+
+> 由于这个例子里并不涉及真正的数据库I/O, 因此不能作为示例
+
+在不使用DataLoader时, 假设执行N次GetSingleUserById, 那么I/O会是这样的:
+
+```text
+----->
+----->
+------>
+---->
+```
+
+相当于是多个耗时较小的I/O并行执行.
+
+而执行1次GetBatchUsersByIds, I/O可能会是这样的:
+
+```text
+--------------->
+```
+
+相当于单个耗时较大的I/O执行.
+
+所以, 使用DataLoader并不一定能提升你的接口RT, 只有在数据量级达到一定程度时, 才有可能带来明显的RT提升, 在数据量级较小时, 它反而可能带来反作用.
+
+> RT: Request Time, 请求耗时
