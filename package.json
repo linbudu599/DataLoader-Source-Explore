@@ -21,7 +21,7 @@
     "@nestjs/common": "^7.6.7",
     "@nestjs/core": "^7.6.7",
     "@nestjs/graphql": "^7.9.8",
-    "apollo-server": "^2.19.2",
+    "apollo-server": "^3.0.1",
     "dataloader": "^2.0.0",
     "rxjs": "^6.6.3"
   },
