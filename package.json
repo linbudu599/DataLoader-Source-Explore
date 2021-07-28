@@ -18,7 +18,7 @@
   },
   "homepage": "https://github.com/linbudu599/DataLoader-Source-Explore#readme",
   "dependencies": {
-    "@nestjs/common": "^7.6.7",
+    "@nestjs/common": "^8.0.5",
     "@nestjs/core": "^7.6.7",
     "@nestjs/graphql": "^7.9.8",
     "apollo-server": "^2.19.2",
