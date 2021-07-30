@@ -160,7 +160,8 @@ const resolvers = {
 const server = new ApolloServer({
   typeDefs,
   resolvers,
-  tracing: true,
+  // FIXME: Apollo v3 breaking change
+  // tracing: true,
   context: async () => {
     return {
       service: mockService,
@@ -202,14 +203,15 @@ const server = new ApolloServer({
       },
     };
   },
-  playground: {
-    settings: {
-      "editor.fontSize": 16,
-      "editor.fontFamily": "Fira Code",
-    },
-  },
+  // FIXME: Apollo v3 breaking change
+  // playground: {
+  //   settings: {
+  //     "editor.fontSize": 16,
+  //     "editor.fontFamily": "Fira Code",
+  //   },
+  // },
 });
 
-server.listen(4545).then(({ url }) => {
+server.listen(7878).then(({ url }) => {
   console.log(chalk.greenBright(`Apollo GraphQL Server ready at ${url}`));
 });
