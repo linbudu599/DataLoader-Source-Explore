@@ -160,8 +160,7 @@ const resolvers = {
 const server = new ApolloServer({
   typeDefs,
   resolvers,
-  // FIXME: Apollo v3 breaking change
-  // tracing: true,
+  tracing: true,
   context: async () => {
     return {
       service: mockService,
@@ -203,13 +202,12 @@ const server = new ApolloServer({
       },
     };
   },
-  // FIXME: Apollo v3 breaking change
-  // playground: {
-  //   settings: {
-  //     "editor.fontSize": 16,
-  //     "editor.fontFamily": "Fira Code",
-  //   },
-  // },
+  playground: {
+    settings: {
+      "editor.fontSize": 16,
+      "editor.fontFamily": "Fira Code",
+    },
+  },
 });
 
 server.listen(7878).then(({ url }) => {
