@@ -1,5 +1,3 @@
-import uniq from "lodash/uniq";
-
 export type BatchLoader<K, V> = (
   keys: Readonly<Array<K>>
 ) => Promise<Readonly<Array<V | Error>>>;
@@ -15,17 +13,11 @@ export type Queue<K, V> = {
   cacheHits: Array<() => void>;
 };
 
-export type CacheMap<K, V> = {
-  get(key: K): V | void;
-  set(key: K, value: V): any;
-  delete(key: K): any;
-  clear(): any;
-};
 export default class TinyDataLoader<K, V> {
   readonly _batchLoader: BatchLoader<K, V>;
 
   _taskQueue: Queue<K, V>;
-  _cacheMap: CacheMap<K, Promise<V>> | null;
+  _cacheMap: Map<K, Promise<V>> | null;
 
   constructor(batchLoader: BatchLoader<K, V>) {
     this._batchLoader = batchLoader;
