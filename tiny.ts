@@ -1,14 +1,14 @@
-type BatchLoader<K, V> = (
+export type BatchLoader<K, V> = (
   keys: Readonly<Array<K>>
 ) => Promise<Readonly<Array<V | Error>>>;
 
-type Task<K, V> = {
+export type Task<K, V> = {
   key: K;
   resolve: (val: V) => void;
   reject: (reason?: unknown) => void;
 };
 
-type Queue<K, V> = Array<Task<K, V>>;
+export type Queue<K, V> = Array<Task<K, V>>;
 
 export default class TinyDataLoader<K, V, C> {
   readonly _batchLoader: BatchLoader<K, V>;
@@ -53,7 +53,7 @@ function enqueuePostPromiseJob(fn: () => void): void {
   resolvedPromise.then(() => process.nextTick(fn));
 }
 
-function executeTaskQueue<K, V>(loader: TinyDataLoader<K, V, any>) {
+export function executeTaskQueue<K, V>(loader: TinyDataLoader<K, V, any>) {
   // 保存后清空
   const queue = loader._taskQueue;
   loader._taskQueue = [];

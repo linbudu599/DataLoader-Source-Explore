@@ -14,7 +14,9 @@ const typeDefs = gql`
     id: Int!
     name: String!
     partner: User
+    batchLoadPartner: User
     pets: [Pet]
+    batchLoadPets: [Pet]
   }
 
   type Pet {
@@ -102,7 +104,7 @@ const mockService = (() => {
         `getUserByName: ${name}`
       ),
 
-    getUsersByIds: (ids: number[]) =>
+    getUsersByIds: (ids: readonly number[]) =>
       promiseWrapper(
         users.filter((user) => ids.includes(user.id)),
         `getUsersByIds: ${ids}`
@@ -116,7 +118,7 @@ const mockService = (() => {
         `getPetById: ${id}`
       ),
 
-    getPetsByIds: (ids: number[]) =>
+    getPetsByIds: (ids: readonly number[]) =>
       promiseWrapper(
         pets.filter((pet) => ids.includes(pet.id)),
         `getPetsByIds: ${ids}`
@@ -138,21 +140,37 @@ type IContext = {
 
 const resolvers = {
   Query: {
-    fetchUserByName(root, { name }: { name: string }, { service }: IContext) {
+    fetchUserByName(
+      _root: undefined,
+      { name }: { name: string },
+      { service }: IContext
+    ) {
       return service.getUserByName(name);
     },
-    fetchAllUsers(root, args, { service }: IContext) {
+    fetchAllUsers(_root: undefined, _args: undefined, { service }: IContext) {
       return service.getAllUsers();
     },
   },
   User: {
-    async partner(user: IUser, args, { service, dataloaders }: IContext) {
+    async partner(user: IUser, _args: undefined, { service }: IContext) {
       return service.getUserById(user.partnerId);
-      // return dataloaders.users.load(user.partnerId);
     },
-    async pets(user: IUser, args, { service, dataloaders }: IContext) {
+    async batchLoadPartner(
+      user: IUser,
+      _args: undefined,
+      { dataloaders }: IContext
+    ) {
+      return dataloaders.users.load(user.partnerId);
+    },
+    async pets(user: IUser, _args: undefined, { service }: IContext) {
       return service.getPetsByIds(user.petsId);
-      // return dataloaders.pets.loadMany(user.petsId);
+    },
+    async batchLoadPets(
+      user: IUser,
+      _args: undefined,
+      { dataloaders }: IContext
+    ) {
+      return dataloaders.pets.loadMany(user.petsId);
     },
   },
 };
@@ -165,34 +183,22 @@ const server = new ApolloServer({
     return {
       service: mockService,
       dataloaders: {
+        // user的批处理函数
         users: new DataLoader(async (userIds: Readonly<number[]>) => {
-          console.log("Received User IDs");
+          console.log("DataLoader Received User IDs");
           console.log(userIds);
-          const users = await mockService.getUsersByIds(userIds as number[]);
-          // console.log(
-          //   users.sort(
-          //     (prev, curr) =>
-          //       userIds.indexOf(prev.id) - userIds.indexOf(curr.id)
-          //   )
-          // );
+          const users = await mockService.getUsersByIds(userIds);
           return users.sort(
             (prev, curr) => userIds.indexOf(prev.id) - userIds.indexOf(curr.id)
           );
         }),
         pets: new DataLoader(
           async (petIds: Readonly<number[]>) => {
-            console.log("Received Pet IDs");
+            console.log("DataLoader Received Pet IDs");
             console.log(petIds);
-            const pets = await mockService.getPetsByIds(petIds as number[]);
+            const pets = await mockService.getPetsByIds(petIds);
             // console.log("Returned Pet Res");
             // console.log(pets);
-            // console.log("Sorted Pet Res(as param order)");
-            // console.log(
-            //   pets.sort(
-            //     (prev, curr) =>
-            //       petIds.indexOf(prev.id) - petIds.indexOf(curr.id)
-            //   )
-            // );
             return pets.sort(
               (prev, curr) => petIds.indexOf(prev.id) - petIds.indexOf(curr.id)
             );

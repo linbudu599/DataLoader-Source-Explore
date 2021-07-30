@@ -5,8 +5,9 @@
   "description": "DataLoader源码讲解, 附带TypeGraphQL-DataLoader与Prisma DataLoader解析",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon ./demo1.ts",
-    "test": "jest"
+    "dev": "tsnd --respawn --transpile-only ./sample.ts",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "repository": {
     "type": "git",
@@ -29,6 +30,7 @@
     "rxjs": "^7.3.0"
   },
   "devDependencies": {
+    "@types/jest": "^26.0.24",
     "@types/node": "^16.4.7",
     "chalk": "^4.1.1",
     "jest": "^27.0.6",
