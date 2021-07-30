@@ -264,7 +264,7 @@ let enqueuePostPromiseJob =
   // Node下使用process.nextTick
   // 浏览器使用宏任务
   typeof process === "object" && typeof process.nextTick === "function"
-    ? function (fn) {
+    ? function (fn: Function) {
         if (!resolvedPromise) {
           resolvedPromise = Promise.resolve();
         }
@@ -456,9 +456,10 @@ function getValidBatchScheduleFn(
 }
 
 // Private: given the DataLoader's options, produce a cache key function.
-function getValidCacheKeyFn<K, C>(options?: Options<K, any, C>): (K) => C {
+function getValidCacheKeyFn<K, C>(options?: Options<K, any, C>): (arg: K) => C {
   let cacheKeyFn = options && options.cacheKeyFn;
   if (cacheKeyFn === undefined) {
+    // @ts-ignore
     return (key) => key;
   }
   if (typeof cacheKeyFn !== "function") {
@@ -482,7 +483,9 @@ function getValidCacheMap<K, V, C>(
   if (cacheMap !== null) {
     let cacheFunctions = ["get", "set", "delete", "clear"];
     let missingFunctions = cacheFunctions.filter(
+      // @ts-ignore
       (fnName) => cacheMap && typeof cacheMap[fnName] !== "function"
+      // (fnName) => cacheMap && typeof cacheMap.get(fnName as any) !== "function"
     );
     if (missingFunctions.length !== 0) {
       throw new TypeError(

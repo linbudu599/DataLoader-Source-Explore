@@ -5,7 +5,8 @@
   "description": "DataLoader源码讲解, 附带TypeGraphQL-DataLoader与Prisma DataLoader解析",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon ./demo1.ts"
+    "dev": "nodemon ./demo1.ts",
+    "test": "jest"
   },
   "repository": {
     "type": "git",

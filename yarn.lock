@@ -353,13 +353,6 @@
   resolved "https://registry.yarnpkg.com/@bcoe/v8-coverage/-/v8-coverage-0.2.3.tgz#75a2e8b51cb758a7553d6804a5932d7aace75c39"
   integrity sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==
 
-"@envelop/apollo-tracing@^1.0.2":
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/@envelop/apollo-tracing/-/apollo-tracing-1.0.2.tgz#656c900b7427e53be91f4f600f5f7d248a6e482d"
-  integrity sha512-qlIpojLPcELaq2ZQSSD2169Z+veJ94faqJ6ZhM2HSKG2Zhc82pUHum4au/MhSCfgDlq2CjVZQOOleCATjzteqQ==
-  dependencies:
-    apollo-tracing "^0.15.0"
-
 "@graphql-tools/merge@6.2.14":
   version "6.2.14"
   resolved "https://registry.yarnpkg.com/@graphql-tools/merge/-/merge-6.2.14.tgz#694e2a2785ba47558e5665687feddd2935e9d94e"
