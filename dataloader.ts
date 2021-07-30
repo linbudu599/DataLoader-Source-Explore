@@ -1,5 +1,6 @@
 // A Function, which when given an Array of keys, returns a Promise of an Array
 // of values or Errors.
+// 批处理函数 即能根据一组id获得对应的结果
 export type BatchLoadFn<K, V> = (
   keys: Readonly<Array<K>>
 ) => Promise<Readonly<Array<V | Error>>>;
@@ -12,6 +13,9 @@ export type Options<K, V, C = K> = {
   batch?: boolean;
   maxBatchSize?: number;
   batchScheduleFn?: (callback: () => void) => void;
+  // 缓存并非是对返回值的缓存 而是batchLoader入参 键的缓存
+  // 举例来说 多个方法传入了有重叠的id 如 1,2,3  2,3,4
+  // 由于cache的能力，会自动缓存已录入的id
   cache?: boolean;
   cacheKeyFn?: (key: K) => C;
   cacheMap?: CacheMap<C, Promise<V>> | null;
@@ -70,7 +74,9 @@ export default class DataLoader<K, V, C = K> {
     // 批处理上限, 比如同时load n条数据
     this._maxBatchSize = getValidMaxBatchSize(options);
 
+    // 默认情况下为返回入参的函数
     this._cacheKeyFn = getValidCacheKeyFn(options);
+    // 默认情况下为原生Map
     this._cacheMap = getValidCacheMap(options);
 
     // 当前的批(不知道咋翻译好点)
@@ -107,12 +113,19 @@ export default class DataLoader<K, V, C = K> {
     let batch = getCurrentBatch(this);
 
     let cacheMap = this._cacheMap;
+    // 生成实际用于缓存的key
     let cacheKey = this._cacheKeyFn(key);
 
+    // 如果当前存在缓存，并且新来的key对应的函数命中了缓存
+    // 则返回缓存过的
     // If caching and there is a cache-hit, return cached Promise.
+    // 成员为 key -> Promise
     if (cacheMap) {
+      // 可以用upsert代替...
       let cachedPromise = cacheMap.get(cacheKey);
+
       if (cachedPromise) {
+        // 如果这个key对应的函数已经被缓存了
         let cacheHits = batch.cacheHits || (batch.cacheHits = []);
         return new Promise((resolve) => {
           cacheHits.push(() => {
@@ -133,6 +146,7 @@ export default class DataLoader<K, V, C = K> {
     });
 
     // If caching, cache this promise.
+    // 设置缓存
     if (cacheMap) {
       cacheMap.set(cacheKey, promise);
     }
@@ -216,7 +230,7 @@ export default class DataLoader<K, V, C = K> {
 
       // Only add the key if it does not already exist.
       if (cacheMap.get(cacheKey) === undefined) {
-        // Cache a rejected promise if the value is an Error, in order to match
+        // Cache a drejected promise if the value is an Error, in order to match
         // the behavior of load(key).
         let promise;
         if (value instanceof Error) {
@@ -455,6 +469,7 @@ function getValidBatchScheduleFn(
   return batchScheduleFn;
 }
 
+// 默认不会对key做任何转化
 // Private: given the DataLoader's options, produce a cache key function.
 function getValidCacheKeyFn<K, C>(options?: Options<K, any, C>): (arg: K) => C {
   let cacheKeyFn = options && options.cacheKeyFn;
@@ -468,6 +483,7 @@ function getValidCacheKeyFn<K, C>(options?: Options<K, any, C>): (arg: K) => C {
   return cacheKeyFn;
 }
 
+// 默认使用原生的Map
 // Private: given the DataLoader's options, produce a CacheMap to be used.
 function getValidCacheMap<K, V, C>(
   options?: Options<K, V, C>
@@ -482,10 +498,11 @@ function getValidCacheMap<K, V, C>(
   }
   if (cacheMap !== null) {
     let cacheFunctions = ["get", "set", "delete", "clear"];
+    // 检查是否实现了要求的方法
     let missingFunctions = cacheFunctions.filter(
+      // FIXME: use keyof CacheMap
       // @ts-ignore
       (fnName) => cacheMap && typeof cacheMap[fnName] !== "function"
-      // (fnName) => cacheMap && typeof cacheMap.get(fnName as any) !== "function"
     );
     if (missingFunctions.length !== 0) {
       throw new TypeError(

@@ -27,10 +27,12 @@
     "apollo-server": "2.25.2",
     "dataloader": "^2.0.0",
     "graphql": "^15.5.1",
+    "lodash": "^4.17.21",
     "rxjs": "^7.3.0"
   },
   "devDependencies": {
     "@types/jest": "^26.0.24",
+    "@types/lodash": "^4.14.171",
     "@types/node": "^16.4.7",
     "chalk": "^4.1.1",
     "jest": "^27.0.6",

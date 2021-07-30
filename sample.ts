@@ -1,6 +1,7 @@
 import { ApolloServer, gql } from "apollo-server";
-import DataLoader from "./dataloader";
-// import DataLoader from "./tiny";
+// import DataLoader from "./dataloader";
+// import DataLoader from "./batch-only-loader";
+import DataLoader from "./tiny";
 
 import chalk from "chalk";
 
@@ -133,8 +134,8 @@ type ServiceType = typeof mockService;
 type IContext = {
   service: ServiceType;
   dataloaders: {
-    users: DataLoader<number, IUser, number>;
-    pets: DataLoader<number, IPet, number>;
+    users: DataLoader<number, IUser>;
+    pets: DataLoader<number, IPet>;
   };
 };
 
