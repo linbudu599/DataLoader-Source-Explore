@@ -1,0 +1,18 @@
+fragment UserFields on User {
+  id
+  name
+  batchLoadPartner {
+    id
+  }
+  batchLoadPets {
+    id
+    isMale
+    kind
+  }
+}
+
+query CommonQuery {
+  fetchAllUsers {
+    ...UserFields
+  }
+}

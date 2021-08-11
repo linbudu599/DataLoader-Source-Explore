@@ -1,7 +1,7 @@
 import { ApolloServer, gql } from "apollo-server";
 // import DataLoader from "./dataloader";
-// import DataLoader from "./batch-only-loader";
-import DataLoader from "./tiny";
+import DataLoader from "dataloader";
+// import DataLoader from "./tiny";
 
 import chalk from "chalk";
 
@@ -184,7 +184,6 @@ const server = new ApolloServer({
     return {
       service: mockService,
       dataloaders: {
-        // user的批处理函数
         users: new DataLoader(async (userIds: Readonly<number[]>) => {
           console.log("DataLoader Received User IDs");
           console.log(userIds);
@@ -193,19 +192,16 @@ const server = new ApolloServer({
             (prev, curr) => userIds.indexOf(prev.id) - userIds.indexOf(curr.id)
           );
         }),
-        pets: new DataLoader(
-          async (petIds: Readonly<number[]>) => {
-            console.log("DataLoader Received Pet IDs");
-            console.log(petIds);
-            const pets = await mockService.getPetsByIds(petIds);
-            // console.log("Returned Pet Res");
-            // console.log(pets);
-            return pets.sort(
-              (prev, curr) => petIds.indexOf(prev.id) - petIds.indexOf(curr.id)
-            );
-          }
-          // { batch: true, cache: true }
-        ),
+        pets: new DataLoader(async (petIds: Readonly<number[]>) => {
+          console.log("DataLoader Received Pet IDs");
+          console.log(petIds);
+          const pets = await mockService.getPetsByIds(petIds);
+          console.log("Returned Pet Res");
+          console.log(pets);
+          return pets.sort(
+            (prev, curr) => petIds.indexOf(prev.id) - petIds.indexOf(curr.id)
+          );
+        }),
       },
     };
   },

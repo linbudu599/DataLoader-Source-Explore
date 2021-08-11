@@ -1,0 +1,18 @@
+fragment UserFields on User {
+  id
+  name
+  partner {
+    id
+  }
+  pets {
+    id
+    isMale
+    kind
+  }
+}
+
+query CommonQuery {
+  fetchAllUsers {
+    ...UserFields
+  }
+}

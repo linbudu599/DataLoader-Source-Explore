@@ -1,5 +1,29 @@
 # DataLoader-Source-Explore
 
+## Quick Start
+
+```bash
+yarn
+yarn dev
+```
+
+打开链接：[http://localhost:7878/](http://localhost:7878/)
+
+使用 [common.graphql](graphql/common.graphql) 的语句发起查询，此操作预期将重复调用 `getUserById` `getPetsByIds` 方法，见终端输出。
+
+使用 [dataloader.graphql](graphql/dataloader.graphql) 的语句发起查询，此操作预期将仅调用批查询方法`getUsersByIds` `getPetsByIds`，见终端输出。
+
+通过最上方的导入来切换示例使用的 DataLoader 实现：
+
+```typescript
+// TS 版本
+import DataLoader from "./dataloader";
+// NPM 版本
+import DataLoader from "dataloader";
+// 迷你实现版本
+import DataLoader from "./tiny";
+```
+
 ## Includes
 
 - [Original Implementation](source/index.js)
