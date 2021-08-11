@@ -309,7 +309,7 @@ function getCurrentBatch<K, V>(loader: DataLoader<K, V, any>): Batch<K, V> {
     // 未超过最大并发量
     // 超过的话会自动隔离成两次?
     existingBatch.keys.length < loader._maxBatchSize &&
-    // TODO: 缓存相关
+    // 不存在 cacheHits 或 存在的 cacheHits 未超过最大并发量
     (!existingBatch.cacheHits ||
       existingBatch.cacheHits.length < loader._maxBatchSize)
   ) {
@@ -392,7 +392,7 @@ function dispatchBatch<K, V>(
 
       // Resolve all cache hits in the same micro-task as freshly loaded values.
       resolveCacheHits(batch);
-
+  
       // Step through values, resolving or rejecting each Promise in the batch.
       for (let i = 0; i < batch.callbacks.length; i++) {
         // 使用加载值来resolve掉load的promise
