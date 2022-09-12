@@ -31,7 +31,7 @@
     "rxjs": "^7.3.0"
   },
   "devDependencies": {
-    "@types/jest": "^26.0.24",
+    "@types/jest": "^29.0.1",
     "@types/lodash": "^4.14.171",
     "@types/node": "^16.4.7",
     "chalk": "^4.1.1",
